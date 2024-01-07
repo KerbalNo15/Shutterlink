@@ -91,7 +91,7 @@ On your phone, select "Create Background Link" and click "Connect"
 
 <img src="menu-screenshots/mode-select-2.png" width="400">
 
-Your phohe will display "Searching for Camera" until it finds the camera, at which point it will attempt to pair. When you see "Connection Successful," check the camera to confirm the image settings. It may be several seconds until the camera recognizes the connection. Eventually, the camera will display this screen:
+Your phone will display "Searching for Camera" until it finds the camera, at which point it will attempt to pair. When you see "Connection Successful," check the camera to confirm the image settings. It may be several seconds until the camera recognizes the connection. Eventually, the camera will display this screen:
 
 <img src="menu-screenshots/select-destination.jpg" width="400">
 
