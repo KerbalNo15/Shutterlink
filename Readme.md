@@ -5,7 +5,7 @@ An open-source Android app to connect to Panasonic Lumix cameras. This project i
 I created this application to make the wireless functions of older Panasonic cameras compatible with newer versions of Android. I got tired of moving my pictures with an SD card reader, and it felt like a shame to keep doing this when the camera has WiFi functionality. Shutterlink supports both viewing the camera contents and auto-downloading images as you take them.
 
 ## Does it Work With my Camera?
-I don't know. I developed it for my G85 and GM1, so they both work. I don't know how well other models will work; if you have a camera and are willing to test it, I would love to know what works and what doesn't.
+I don't know. I developed it for my G85 and GM1, so to the best of my knowledge those both work. I don't know how well other models will work; if you have a camera and are willing to test it, I would love to know what works and what doesn't.
 
 ## How do I use it?
 I made a simple guide to setting up your camera [Here](getting_started.md)
