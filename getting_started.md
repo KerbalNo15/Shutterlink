@@ -43,7 +43,10 @@ On your phone, select "Download Images from Camera" and click "Connect".
 
 At this point, the camera should briefly flash "Under remote control" and image thumbnails will appear on the screen.
 
-The camera is now connected. To download an image, tap on it. 
+The camera is now connected. To download an image, tap on it.
+
+## Remote Shutter Control
+In the image download mode, you can press either the volume up or volume down button to trigger a shutter release.
 
 ---
 ## Automatically Send Images as you Take Them
