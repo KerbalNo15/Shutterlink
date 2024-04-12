@@ -8,11 +8,14 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -72,6 +75,7 @@ import kotlinx.coroutines.withContext
 import net.cheeseverse.shutterlink.ui.theme.ShutterlinkTheme
 import java.io.BufferedReader
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.PrintWriter
@@ -93,6 +97,7 @@ var deviceIPAddress = ""
 var cameraIPAddress = ""
 val imagesPerRequest = 21
 var deviceUUID = "4D454930-0100-1000-8001-"
+var cameraMode = ""
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -110,6 +115,14 @@ class MainActivity : ComponentActivity() {
             }
         }
         startActivity(this, Intent(Settings.Panel.ACTION_WIFI), null)
+
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if(cameraMode != "" && (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
+            GlobalScope.launch { captureImage() }
+        }
+        return true
     }
 
     override fun onStop() {
@@ -123,12 +136,15 @@ suspend fun doKeepAlive() {
     while(true) {
         try {
             val url = URL("http://$cameraIPAddress:80/cam.cgi?mode=getstate")
-            val con = url.openConnection() as HttpURLConnection
-            delay(100);
-            if (con.responseCode != 200) {
-                println("Keepalive Failed with Message: " + con.responseMessage)
-            }
-            con.disconnect();
+//            val con = url.openConnection() as HttpURLConnection
+//            delay(100);
+//            if (con.responseCode != 200) {
+//                println("Keepalive Failed with Message: " + con.responseMessage)
+//            }
+            val text = url.readText()
+            cameraMode = text.substring(text.indexOf("<cammode>") + 9, text.indexOf("</cammode>"))
+            println(cameraMode)
+//            con.disconnect();
             delay(500)
         } catch(e: Exception) {
             println("Keepalive failed catastrophically: $e")
@@ -242,13 +258,27 @@ suspend fun downloadHQImage(path: String, ctx: Context, downloadDialogVisible: (
     var url = URL("http://$cameraIPAddress:50001/$fileName");
 //    var con = url.openConnection() as HttpURLConnection
 //    val fileSize = con.getHeaderField("X-FILE_SIZE").toInt()
-    val imageData = url.readBytes()
+    var imageData = "".toByteArray()
+    var isVideo = false
+    try {
+        imageData = url.readBytes()
+    } catch(e: FileNotFoundException) {
+        url = URL("http://$cameraIPAddress:50001/${fileName.substring(0, fileName.length - 3) + "mp4"}");
+        imageData = url.readBytes()
+        isVideo = true
+    }
     val resolver = ctx.contentResolver;
     val info = ContentValues();
-    info.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
-    info.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+    var imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, info);
+    if(isVideo) {
+        info.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName.substring(0, fileName.length - 3) + "mp4");
+        info.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
+        imageUri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, info);
+    } else {
+        info.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+        info.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+    }
     info.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DCIM + File.separator + "Shutterlink");
-    val imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, info);
     val os = resolver.openOutputStream(imageUri!!);
     if (os != null) {
         os.write(imageData)
@@ -258,8 +288,6 @@ suspend fun downloadHQImage(path: String, ctx: Context, downloadDialogVisible: (
     return imageUri
 }
 
-
-//Logic for automatic transfer
 suspend fun constantlyAdvertiseSSDP(socket: MulticastSocket) {
     while(picReceiverConnectionStage < 4) {
         val bytes = ("M-SEARCH * HTTP/1.1\r\n" +
@@ -600,7 +628,37 @@ suspend fun registerAsReceiver(ctx: Context, progressText:(String) -> Unit, down
     }
 }
 
+fun captureImage() {
+    if(cameraMode != "rec") {
+        try {
+            var url = URL("http://$cameraIPAddress:80/cam.cgi?mode=camcmd&value=recmode")
+            var con = url.openConnection() as HttpURLConnection
+//        delay(125);
+            println("Requesting record mode " + con.responseMessage)
+            con.disconnect();
+        } catch(e: Exception) {
+            println("Failed to send control request: \n$e")
+        }
+    }
+        try {
+            var url = URL("http://$cameraIPAddress:80/cam.cgi?mode=camcmd&value=capture")
+            var con = url.openConnection() as HttpURLConnection
+//        delay(125);
+            println("Asked camera to take a picture " + con.responseMessage)
+            con.disconnect();
+        } catch (e: Exception) {
+            println("Failed to send control request: \n$e")
+        }
+}
 
+suspend fun downloadThumbnail(context: Context, pic: String, downloadLocation: (String) -> Unit) {
+    var url = URL("http://$cameraIPAddress:50001/$pic")
+    val imageData = url.readBytes();
+    val tempFile = File.createTempFile(pic, null, context.cacheDir);
+    tempFile.appendBytes(imageData)
+    tempFile.renameTo(File(context.cacheDir, pic))
+    downloadLocation(pic)
+}
 
 //UI Below
 @Composable
@@ -613,6 +671,8 @@ fun initBox(ctx: Context) {
     var downloadProgress by remember { mutableStateOf(0.0f)}
     var connectionMethodSelected by remember { mutableStateOf(false)}
     var connectionToSelect by remember { mutableStateOf(1)}
+    var imagePreviewVisible by remember { mutableStateOf(false)}
+    var imageToPreview by remember { mutableStateOf("")}
 
     val snackbarHostState = remember { SnackbarHostState() }
     Scaffold(
@@ -634,7 +694,7 @@ fun initBox(ctx: Context) {
                         Row(modifier = Modifier.height(30.dp)) {}
                         Row {
                             Text(
-                                text = "Downloading Image",
+                                text = "Downloading",
                                 fontSize = 4.em,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -656,6 +716,16 @@ fun initBox(ctx: Context) {
                             )
                         }
                     }
+                }
+            }
+        }
+
+        if (imagePreviewVisible) {
+            Dialog(onDismissRequest = { imagePreviewVisible = false}) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    AsyncImage(model = File(ctx.cacheDir, imageToPreview), contentDescription = "Image Preview")
                 }
             }
         }
@@ -834,7 +904,9 @@ fun initBox(ctx: Context) {
                         ctx,
                         snackbarHostState,
                         { visible -> downloading = visible },
-                        { dp -> downloadProgress = dp });
+                        { dp -> downloadProgress = dp },
+                        {vis -> imagePreviewVisible = vis},
+                        {itm -> imageToPreview = itm});
                 } //PicList
             }
 
@@ -880,6 +952,22 @@ fun initBox(ctx: Context) {
                                     Text("Newer", color = MaterialTheme.colorScheme.onBackground)
                                 }
 
+//                                OutlinedButton(
+//                                    modifier = Modifier
+//                                        .width(100.dp)
+//                                        .height(50.dp),
+//                                    onClick = {
+//                                            GlobalScope.launch {
+//                                                try {
+//                                                    captureImage()
+//                                                } catch (e: Exception) {
+//                                                    println("Unable to capture image")
+//                                                }
+//                                            }
+//                                    }) {
+//                                    Text("Capture", color = MaterialTheme.colorScheme.onBackground)
+//                                }
+
                                 OutlinedButton(
                                     modifier = Modifier
                                         .width(100.dp)
@@ -908,15 +996,18 @@ fun initBox(ctx: Context) {
                         }
                     }
                 }
-                Spacer(modifier = Modifier.fillMaxWidth().height(4.dp))
+                Spacer(modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp))
             }
 
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PicList(imagePaths: List<String>, ctx: Context, snackbarHostState: SnackbarHostState, downloading: (Boolean) -> Unit, downloadProgress: (Float) -> Unit) {
+fun PicList(imagePaths: List<String>, ctx: Context, snackbarHostState: SnackbarHostState, downloading: (Boolean) -> Unit, downloadProgress: (Float) -> Unit, imagePreviewVisible: (Boolean) -> Unit, imageToPreview: (String) -> Unit) {
     val scope = rememberCoroutineScope()
 
     LazyVerticalGrid(
@@ -940,38 +1031,48 @@ fun PicList(imagePaths: List<String>, ctx: Context, snackbarHostState: SnackbarH
                         )
                     )
                     .wrapContentHeight()
-                    .clickable {
-                        GlobalScope.launch {
-                            val imageUri = downloadHQImage(
-                                imagePaths[index],
-                                ctx,
-                                { visible -> downloading(visible) },
-                                downloadProgress
-                            )
-                            scope.launch {
-                                val result = snackbarHostState
-                                    .showSnackbar(
-                                        message = "Image Downloaded",
-                                        actionLabel = "Open",
-                                        duration = SnackbarDuration.Short,
-                                        withDismissAction = true
-                                    )
-                                when (result) {
-                                    SnackbarResult.ActionPerformed -> {
-                                        val intent = Intent(Intent.ACTION_VIEW)
-                                        intent.setDataAndType(imageUri,"image/*")
-                                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                                        if(intent.resolveActivity(ctx.packageManager) != null) {
-                                            startActivity(ctx, intent, null)
+                    .combinedClickable(
+                        onLongClick = {
+                            GlobalScope.launch {
+                                downloadThumbnail(ctx, "DL" + imagePaths[index].substring(2), imageToPreview)
+                                imagePreviewVisible(true)
+                            }
+//                            imageToPreview(imagePaths[index])
+                        },
+                        onClick = {
+                            GlobalScope.launch {
+                                val imageUri = downloadHQImage(
+                                    imagePaths[index],
+                                    ctx,
+                                    { visible -> downloading(visible) },
+                                    downloadProgress
+                                )
+                                scope.launch {
+                                    val result = snackbarHostState
+                                        .showSnackbar(
+                                            message = "Content Downloaded",
+                                            actionLabel = "Open",
+                                            duration = SnackbarDuration.Short,
+                                            withDismissAction = true
+                                        )
+                                    when (result) {
+                                        SnackbarResult.ActionPerformed -> {
+                                            val intent = Intent(Intent.ACTION_VIEW)
+                                            intent.setDataAndType(imageUri, "image/*")
+                                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                            if (intent.resolveActivity(ctx.packageManager) != null) {
+                                                startActivity(ctx, intent, null)
+                                            }
                                         }
-                                    }
-                                    SnackbarResult.Dismissed -> {
+
+                                        SnackbarResult.Dismissed -> {
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
+                    )
                     .clip(
                         shape = RoundedCornerShape(
                             topStart = 8.dp,
