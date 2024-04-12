@@ -102,7 +102,7 @@ Select "Shutterlink," and wait a second until the camera displays a screen like 
 
 <img src="menu-screenshots/camera-connected.jpg" width="400" alt="Camera says connected">
 
-Now, you can either change the image settings or leave them as-is. By default, the camera will send a half-resolution copy of the images you take. You can change this to send anything from 640x480 images to full-size originals. Medium quality typically provides good results without taking a long time to send images. Oce you have the settings set the way you like them, click "Set."
+Now, you can either change the image settings or leave them as-is. By default, the camera will send a half-resolution copy of the images you take. You can change this to send anything from 640x480 images to full-size originals. Medium quality typically provides good results without taking a long time to send images. Once you have the settings set the way you like them, click "Set."
 
 The camera is now connected. When you take a picture, a copy will automatically transfer to your gallery.
 
