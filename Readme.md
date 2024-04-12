@@ -11,9 +11,9 @@ I don't know. I developed it for my G85 and GM1, so to the best of my knowledge 
 I made a simple guide to setting up your camera [Here](getting_started.md)
 
 ## Known bugs?
-Yes, many. This project is in alpha status, and it is not perfect.
+Yes. This project is in alpha, so it is not perfect.
 - All portrait photos are displayed sideways in the thumbnail list. I have no idea how the official app fixes this since my camera doesn't seem to return orientation data with the thumbnail list.
-- You cannot download videos. If you try, the app will immediately crash.
+- ~~You cannot download videos. If you try, the app will immediately crash.~~ Fixed 4/12/24
 - Trying to download an image after your phone disconnects from the camera will cause a crash.
 - Thumbnails are slow to load from some cameras, but this is probably a hardware limitation.
 - Requesting an old page before the current one is finished loading will result in slow loads and the remaining results being appended to the older page of content.
